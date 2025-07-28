@@ -1,0 +1,26 @@
+# IDE and OS files
+.idea/
+*.iml
+.DS_Store
+
+# Local environment files
+.env
+
+# Dependency directories
+node_modules/
+/Sofeware_Demo/node_modules/
+
+# Build output
+/Sofeware_Demo/dist/
+/backend/target/
+
+# Large binary files and archives
+*.tar
+*.tar.gz
+*.zip
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
