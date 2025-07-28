@@ -145,11 +145,10 @@ const handleRegister = async () => {
   try {
     await registerForm.value.validate()
     loading.value = true
-    await axios.post('/api/user/register', {
+    await axios.post('/api/register', {
       username: formData.username,
       email: formData.email,
       phone: formData.phone,
-      realName: formData.realName,
       password: formData.password
     })
     ElMessage.success('注册成功')

@@ -1,0 +1,8 @@
+# Compiled binary
+main
+main.exe
+
+# Environment files
+.env
+config.yaml
+config.json

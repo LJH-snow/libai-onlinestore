@@ -1,0 +1,16 @@
+server:
+  port: 8080
+
+database:
+  host: 127.0.0.1
+  port: 3306         # 这里就是数据库端口，默认3306
+  user: root         # 你的MySQL用户名
+  password: 123456 # 你的MySQL密码
+  dbname: onlinestore
+  charset: utf8mb4
+  parseTime: true
+  loc: Local
+
+jwt:
+  secret: your_jwt_secret
+  expires_in_hours: 24

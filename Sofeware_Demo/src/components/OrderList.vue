@@ -20,8 +20,7 @@
           <!-- 由于后端没有items字段，显示订单基本信息 -->
           <div class="order-summary">
             <p><strong>订单状态：</strong>{{ getStatusLabel(order.status) }}</p>
-            <p><strong>收货地址：</strong>{{ order.address || '地址信息不存在' }}</p>
-            <p><strong>创建时间：</strong>{{ formatTime(order.createdAt) }}</p>
+            <p><strong>收货信息：</strong>{{ order.address }}</p>
           </div>
         </div>
         
@@ -113,7 +112,7 @@ const handleCancelOrder = (order) => {
       type: 'warning'
     }
   ).then(async () => {
-    await axios.put(`/api/order/${order.id}/status?status=CANCELLED`)
+    await axios.put(`/api/orders/${order.id}/cancel`)
     ElMessage.success('订单已取消')
     emit('refresh')
   }).catch(() => {})
@@ -145,7 +144,7 @@ const handleDeleteOrder = (order) => {
       type: 'warning'
     }
   ).then(async () => {
-    await axios.delete(`/api/order/${order.id}`)
+    await axios.delete(`/api/orders/${order.id}`)
     ElMessage.success('订单已删除')
     emit('refresh')
   }).catch(() => {})

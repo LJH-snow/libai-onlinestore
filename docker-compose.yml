@@ -1,50 +1,61 @@
-version: '3.8'
-
 services:
-  # MySQL数据库
+  # MySQL Database Service
   mysql:
     image: mysql:8.0
     container_name: bookstore_mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-BookStore2024!}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
       MYSQL_DATABASE: onlinestore
-      MYSQL_USER: bookstore
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-BookStore2024!}
+      MYSQL_USER: ${MYSQL_USER:-bookstore}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-123456}
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3307}:3306"  # 改为3307端口
     volumes:
       - mysql_data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci]
     networks:
       - bookstore_network
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u", "root", "-p$${MYSQL_ROOT_PASSWORD:-123456}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Spring Boot后端
+  # Go Backend Service
   backend:
-    build: ./backend
-    container_name: bookstore_backend
+    build:
+      context: ./backend-go
+      dockerfile: Dockerfile
+    container_name: bookstore_backend_go
     restart: always
     depends_on:
-      - mysql
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/onlinestore?useSSL=false&serverTimezone=UTC&characterEncoding=utf8
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-BookStore2024!}
-      SERVER_PORT: 8081
+      mysql:
+        condition: service_healthy
     ports:
-      - "8081:8081"
+      - "${BACKEND_PORT:-8082}:8081"  # 改为8082端口
+    environment:
+      - DATABASE_HOST=mysql
+      - DATABASE_USER=root
+      - DATABASE_PASSWORD=${MYSQL_ROOT_PASSWORD:-123456}
+      - DATABASE_DBNAME=onlinestore
+      - DATABASE_PORT=3306
+      - GIN_MODE=release
     networks:
       - bookstore_network
 
-  # Vue前端
+  # Vue Frontend Service
   frontend:
-    build: ./Sofeware_Demo
+    build:
+      context: ./Sofeware_Demo
+      dockerfile: Dockerfile
     container_name: bookstore_frontend
     restart: always
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "${FRONTEND_PORT:-8080}:80"
     networks:
       - bookstore_network
 
@@ -53,4 +64,7 @@ volumes:
 
 networks:
   bookstore_network:
-    driver: bridge 
+    driver: bridge
+
+
+

@@ -24,10 +24,15 @@ export const useCartStore = defineStore('cart', () => {
 
   async function fetchCart() {
     const userStore = useUserStore()
-    const userId = userStore.user?.id || localStorage.getItem('userId')
-    if (!userId) return
-    const res = await axios.get(`/api/cart/user/${userId}`)
-    items.value = res.data.data || []
+    if (!userStore.token) return
+    try {
+      const res = await axios.get('/api/cart')
+      // 确保items总是数组
+      items.value = Array.isArray(res.data) ? res.data : (res.data?.items || [])
+    } catch (error) {
+      console.error('获取购物车失败:', error)
+      items.value = []
+    }
   }
 
   async function addItem(book, quantity = 1) {
@@ -40,19 +45,17 @@ export const useCartStore = defineStore('cart', () => {
       await updateQuantity(existingItem.id, existingItem.quantity + quantity)
     } else {
       const cartItem = {
-        cartId: userId, // Backend uses this as userId to find the cart
         bookId: book.id,
-        quantity: quantity,
-        price: book.price
+        quantity: quantity
       }
-      await axios.post('/api/cart/item', cartItem)
+      await axios.post('/api/cart/items', cartItem)
     }
 
     await fetchCart()
   }
 
   async function removeItem(cartItemId) {
-    await axios.delete(`/api/cart/item/${cartItemId}`)
+    await axios.delete(`/api/cart/items/${cartItemId}`)
     await fetchCart()
   }
 
@@ -65,15 +68,14 @@ export const useCartStore = defineStore('cart', () => {
       quantity 
     }
     
-    await axios.put('/api/cart/item', updatedItem)
+    await axios.put(`/api/cart/items/${cartItemId}`, { quantity })
     await fetchCart()
   }
 
   async function clearCart() {
     const userStore = useUserStore()
-    const userId = userStore.user?.id || localStorage.getItem('userId')
-    if (!userId) return
-    await axios.delete(`/api/cart/user/${userId}/clear`)
+    if (!userStore.token) return
+    await axios.delete('/api/cart/clear')
     items.value = []
   }
 

@@ -17,6 +17,11 @@ COPY src src
 ENV MAVEN_HOME=/usr/share/maven
 ENV PATH=$PATH:$MAVEN_HOME/bin
 
+# 更换apt源为阿里云，加速安装（适配slim镜像）
+RUN echo "deb http://mirrors.aliyun.com/debian/ bookworm main contrib non-free non-free-firmware\n\
+deb http://mirrors.aliyun.com/debian/ bookworm-updates main contrib non-free non-free-firmware\n\
+deb http://mirrors.aliyun.com/debian-security bookworm-security main contrib non-free non-free-firmware" > /etc/apt/sources.list
+
 # 安装Maven
 RUN apt-get update && apt-get install -y maven
 

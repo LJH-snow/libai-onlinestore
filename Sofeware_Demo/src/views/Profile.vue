@@ -17,29 +17,13 @@
       @submit.prevent="handleSubmit"
     >
       <el-form-item label="用户名" prop="username">
-        <el-input v-model="formData.username" />
+        <el-input v-model="formData.username" disabled />
       </el-form-item>
       <el-form-item label="邮箱" prop="email">
         <el-input v-model="formData.email" />
       </el-form-item>
       <el-form-item label="手机号" prop="phone">
         <el-input v-model="formData.phone" />
-      </el-form-item>
-      <el-form-item label="原密码" prop="oldPwd">
-        <el-input v-model="formData.oldPwd" type="password" show-password placeholder="如需修改密码请输入原密码" />
-      </el-form-item>
-      <el-form-item label="新密码" prop="newPwd">
-        <el-input v-model="formData.newPwd" type="password" show-password placeholder="如需修改密码请输入新密码" />
-      </el-form-item>
-      <el-form-item label="确认新密码" prop="confirmPwd">
-        <el-input v-model="formData.confirmPwd" type="password" show-password placeholder="请再次输入新密码" />
-      </el-form-item>
-      <el-form-item label="收货地址">
-        <el-input
-          v-model="formData.address"
-          disabled
-          :placeholder="formData.address ? '请在下方管理收货地址' : '暂无收货地址，请在下方添加'"
-        />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="handleSubmit">保存修改</el-button>
@@ -58,24 +42,39 @@
         <el-table-column label="地址" prop="address">
           <template #default="{ row }">
             <span v-if="row.isDefault" style="color: #409EFF; font-weight: bold;">[默认]</span>
-            {{ row.address }}
+            {{ row.province }} {{ row.city }} {{ row.district }} {{ row.detailAddress }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="220">
-          <template #default="{ row, $index }">
-            <el-button size="small" @click="openEditDialog(row, $index)">编辑</el-button>
-            <el-button size="small" type="danger" @click="deleteAddress($index)" :disabled="!row.canDelete">删除</el-button>
-            <el-button size="small" type="success" v-if="!row.isDefault" @click="setDefault($index)">设为默认</el-button>
+          <template #default="{ row }">
+            <el-button size="small" @click="openEditDialog(row)">编辑</el-button>
+            <el-button size="small" type="danger" @click="deleteAddress(row.id)">删除</el-button>
+            <el-button size="small" type="success" v-if="!row.isDefault" @click="setDefault(row.id)">设为默认</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
     <!-- 地址新增/编辑弹窗 -->
-    <el-dialog v-model="addressDialogVisible" :title="addressDialogTitle" width="400px">
-      <el-form :model="addressForm" :rules="addressRules" ref="addressFormRef" label-width="80px">
-        <el-form-item label="收货地址" prop="address">
-          <el-input v-model="addressForm.address" />
+    <el-dialog v-model="addressDialogVisible" :title="addressDialogTitle" width="500px">
+      <el-form :model="addressForm" :rules="addressRules" ref="addressFormRef" label-width="100px">
+        <el-form-item label="收货人" prop="receiverName">
+          <el-input v-model="addressForm.receiverName" />
+        </el-form-item>
+        <el-form-item label="手机号" prop="phone">
+          <el-input v-model="addressForm.phone" />
+        </el-form-item>
+        <el-form-item label="省份" prop="province">
+          <el-input v-model="addressForm.province" />
+        </el-form-item>
+        <el-form-item label="城市" prop="city">
+          <el-input v-model="addressForm.city" />
+        </el-form-item>
+        <el-form-item label="区/县" prop="district">
+          <el-input v-model="addressForm.district" />
+        </el-form-item>
+        <el-form-item label="详细地址" prop="detailAddress">
+          <el-input v-model="addressForm.detailAddress" />
         </el-form-item>
         <el-form-item label="设为默认">
           <el-switch v-model="addressForm.isDefault" />
@@ -90,258 +89,165 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick, watch } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { useUserStore } from '../stores/user'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
 const userStore = useUserStore()
-const profileForm = ref(null)
 
 const formData = reactive({
-  username: '',
-  email: '',
-  phone: '',
-  address: '',
-  oldPwd: '',
-  newPwd: '',
-  confirmPwd: ''
+  username: userStore.user?.username || '',
+  email: userStore.user?.email || '',
+  phone: userStore.user?.phone || ''
 })
 
-const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  email: [{ required: true, message: '请输入邮箱', trigger: 'blur' }],
-  phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
-  oldPwd: [
-    { validator: (rule, value, callback) => {
-      if (formData.newPwd) {
-        if (!value) {
-          callback(new Error('请输入原密码'))
-        } else {
-          callback()
-        }
-      } else {
-        callback()
-      }
-    }, trigger: 'blur' }
-  ],
-  newPwd: [
-    { validator: (rule, value, callback) => {
-      if (formData.oldPwd || formData.confirmPwd) {
-        if (!value) {
-          callback(new Error('请输入新密码'))
-        } else if (value.length < 6) {
-          callback(new Error('密码长度不能少于6位'))
-        } else {
-          callback()
-        }
-      } else {
-        callback()
-      }
-    }, trigger: 'blur' }
-  ],
-  confirmPwd: [
-    { validator: (rule, value, callback) => {
-      if (formData.newPwd) {
-        if (!value) {
-          callback(new Error('请确认新密码'))
-        } else if (value !== formData.newPwd) {
-          callback(new Error('两次输入的新密码不一致'))
-        } else {
-          callback()
-        }
-      } else {
-        callback()
-      }
-    }, trigger: 'blur' }
-  ]
-}
-
-// 地址管理相关
+// Address Management
 const addressList = ref([])
-
 const addressDialogVisible = ref(false)
 const addressDialogTitle = ref('')
-const addressForm = reactive({ address: '', isDefault: false })
 const addressFormRef = ref(null)
-const addressRules = { address: [{ required: true, message: '请输入收货地址', trigger: 'blur' }] }
-let editIndex = -1
+let currentEditAddressId = null
+
+const addressForm = reactive({
+  receiverName: '',
+  phone: '',
+  province: '',
+  city: '',
+  district: '',
+  detailAddress: '',
+  isDefault: false
+})
+
+const addressRules = {
+  receiverName: [{ required: true, message: '请输入收货人姓名', trigger: 'blur' }],
+  phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
+  province: [{ required: true, message: '请输入省份', trigger: 'blur' }],
+  city: [{ required: true, message: '请输入城市', trigger: 'blur' }],
+  district: [{ required: true, message: '请输入区/县', trigger: 'blur' }],
+  detailAddress: [{ required: true, message: '请输入详细地址', trigger: 'blur' }]
+}
+
+const fetchAddressList = async () => {
+  try {
+    const userId = userStore.user?.id || localStorage.getItem('userId')
+    if (!userId) {
+      console.error('User ID not found, cannot fetch addresses.')
+      return
+    }
+    const res = await axios.get(`/api/addresses/user/${userId}`)
+    addressList.value = res.data.data || []
+  } catch (error) {
+    console.error('Fetch address list error:', error)
+    ElMessage.error('获取地址列表失败')
+  }
+}
 
 const openAddDialog = () => {
   addressDialogTitle.value = '新增地址'
-  addressForm.address = ''
-  addressForm.isDefault = false
-  editIndex = -1
+  currentEditAddressId = null
+  Object.assign(addressForm, { receiverName: '', phone: '', province: '', city: '', district: '', detailAddress: '', isDefault: false })
   addressDialogVisible.value = true
-  nextTick(() => addressFormRef.value && addressFormRef.value.clearValidate())
+  nextTick(() => addressFormRef.value?.clearValidate())
 }
-const openEditDialog = (row, idx) => {
+
+const openEditDialog = (row) => {
   addressDialogTitle.value = '编辑地址'
-  addressForm.address = row.address
-  addressForm.isDefault = row.isDefault
-  editIndex = idx
+  currentEditAddressId = row.id
+  Object.assign(addressForm, row)
   addressDialogVisible.value = true
-  nextTick(() => addressFormRef.value && addressFormRef.value.clearValidate())
+  nextTick(() => addressFormRef.value?.clearValidate())
 }
-const fetchAddressList = async () => {
-  const userId = userStore.user?.id
-  if (!userId) return
-  try {
-    const res = await axios.get(`/api/addresses/user/${userId}`)
-    addressList.value = res.data.data
-    syncDefaultAddressToForm()
-  } catch (error) {
-    console.error('Fetch address list error:', error)
-    if (error.response?.status === 403) {
-      ElMessage.error('获取地址列表失败：权限不足')
-    } else {
-      ElMessage.error('获取地址列表失败：' + (error.response?.data?.message || error.message))
-    }
-  }
-}
+
 const saveAddress = async () => {
-  addressFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    let userId = userStore.user?.id
-    if (!userId) {
-      await refreshUserData()
-      userId = userStore.user?.id
-    }
-    if (!userId) {
-      ElMessage.error('用户信息获取失败')
-      return
-    }
-    try {
-      const payload = { ...addressForm, userId }
-      if (editIndex === -1) {
-        const response = await axios.post('/api/addresses', payload)
-        ElMessage.success('地址添加成功')
-      } else {
-        const response = await axios.put(`/api/addresses`, { ...addressList.value[editIndex], ...payload })
-        ElMessage.success('地址更新成功')
-      }
-      addressDialogVisible.value = false
-      await fetchAddressList()
-    } catch (error) {
-      if (error.response?.status === 403) {
-        ElMessage.error('权限不足，请重新登录')
-      } else {
-        ElMessage.error('保存失败：' + (error.response?.data?.message || error.message))
-      }
-    }
-  })
-}
-const deleteAddress = async (idx) => {
-  if (!addressList.value[idx].canDelete) {
-    ElMessage.error('该地址已被订单引用，无法删除');
-    return;
-  }
-  await axios.delete(`/api/addresses/${addressList.value[idx].id}`)
-  await fetchAddressList()
-}
-const setDefault = async (idx) => {
-  const userId = userStore.user?.id
-  if (!userId) return
-  await axios.put(`/api/addresses/user/${userId}/default/${addressList.value[idx].id}`)
-  await fetchAddressList()
-}
-// 同步默认地址到个人信息表单
-const syncDefaultAddressToForm = () => {
-  const def = addressList.value.find(addr => addr.isDefault)
-  formData.address = def ? def.address : ''
-}
-
-onMounted(async () => {
-  addressList.value = []
-  await refreshUserData()
-  await fetchAddressList()
-})
-
-watch(() => userStore.user, async (newUser, oldUser) => {
-  addressList.value = []
-  if (newUser?.id !== oldUser?.id) {
-    await refreshUserData()
-    await fetchAddressList()
-  }
-})
-
-const handleSubmit = async () => {
-  if (!profileForm.value) return
-  await profileForm.value.validate(async (valid) => {
+  if (!addressFormRef.value) return
+  await addressFormRef.value.validate(async (valid) => {
     if (valid) {
       try {
-        const userId = userStore.user?.id || localStorage.getItem('userId')
-        if (!userId) {
-          ElMessage.error('用户信息获取失败')
-          return
-        }
-
-        // 构造要提交的数据
-        const submitData = {
-          username: formData.username,
-          email: formData.email,
-          phone: formData.phone
-        }
-
-        // 只有填写了新密码时才提交密码相关字段
-        if (formData.newPwd) {
-          submitData.oldPwd = formData.oldPwd
-          submitData.newPwd = formData.newPwd
-          submitData.confirmPwd = formData.confirmPwd
-        }
-
-        // 提交到后端
-        await axios.put(`/api/user/${userId}`, submitData)
-        
-        if (formData.newPwd) {
-          ElMessage.success('密码修改成功！')
-          // 只有在成功修改密码后才清空密码字段
-          formData.oldPwd = ''
-          formData.newPwd = ''
-          formData.confirmPwd = ''
+        if (currentEditAddressId) {
+          // Update existing address
+          await axios.put(`/api/addresses/${currentEditAddressId}`, addressForm)
+          ElMessage.success('地址更新成功')
         } else {
-          ElMessage.success('个人信息保存成功！')
+          // Create new address
+          await axios.post('/api/addresses', addressForm)
+          ElMessage.success('地址添加成功')
         }
-
-        // 重新获取用户数据刷新页面内容
-        await refreshUserData()
-        
+        addressDialogVisible.value = false
+        await fetchAddressList()
       } catch (error) {
-        ElMessage.error('保存失败：' + (error.response?.data?.message || error.message))
-        console.error('保存失败:', error)
+        console.error('Save address error:', error)
+        ElMessage.error('保存地址失败')
       }
-    } else {
-      ElMessage.error('请检查表单')
     }
   })
 }
 
-// 重新获取用户数据的函数
-const refreshUserData = async () => {
-  const userId = userStore.user?.id || localStorage.getItem('userId')
-  if (userId) {
-    try {
-      const res = await axios.get(`/api/user/${userId}`)
-      const user = res.data.data
-      userStore.setUser(user)
-      formData.username = user.username || ''
-      formData.email = user.email || ''
-      formData.phone = user.phone || ''
-      formData.oldPwd = ''
-    } catch (error) {
-      console.error('刷新用户数据失败:', error)
+const deleteAddress = async (addressId) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这个地址吗？', '警告', { type: 'warning' })
+    await axios.delete(`/api/addresses/${addressId}`)
+    ElMessage.success('地址已删除')
+    await fetchAddressList()
+  } catch (error) {
+    console.error('Delete address error:', error.response?.data || error);
+    if (error.response) {
+        const errorMsg = error.response.data.error || '';
+        if (errorMsg.includes('referenced by an order')) {
+            ElMessage.warning('该地址已被订单引用，无法删除');
+        } else if (errorMsg.includes('default address')) {
+            ElMessage.warning('不能删除默认地址，请先设置其他地址为默认');
+        } else {
+            ElMessage.error(`删除失败: ${errorMsg}`);
+        }
+    } else {
+        ElMessage.error('删除失败，请检查网络连接');
     }
   }
 }
+
+const setDefault = async (addressId) => {
+  try {
+    await axios.patch(`/api/addresses/${addressId}/default`)
+    ElMessage.success('默认地址设置成功')
+    await fetchAddressList()
+  } catch (error) {
+    console.error('Set default address error:', error)
+    ElMessage.error('设置默认地址失败')
+  }
+}
+
+const handleSubmit = async () => {
+  try {
+    await axios.put('/api/user/profile', formData)
+    ElMessage.success('个人信息更新成功')
+    // 更新用户store中的信息
+    userStore.setUser({
+      ...userStore.user,
+      email: formData.email,
+      phone: formData.phone
+    })
+  } catch (error) {
+    ElMessage.error('个人信息更新失败')
+    console.error('更新失败:', error)
+  }
+}
+
+onMounted(() => {
+  userStore.fetchUserInfo().then(() => {
+    formData.username = userStore.user?.username || ''
+    formData.email = userStore.user?.email || ''
+    formData.phone = userStore.user?.phone || ''
+  })
+  fetchAddressList()
+})
+
 </script>
 
 <style scoped>
 .profile {
   padding: 20px;
-}
-
-.address-card {
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
 }
-</style> 
+</style>

@@ -62,6 +62,8 @@
         
         <el-table-column prop="author" label="作者" width="120" />
         
+        <el-table-column prop="isbn" label="ISBN" width="150" />
+
         <el-table-column prop="publisher" label="出版社" width="150" />
         
         <el-table-column prop="price" label="价格" width="100">
@@ -242,7 +244,8 @@ const bookRules = {
     { required: true, message: '请输入出版社', trigger: 'blur' }
   ],
   isbn: [
-    { required: true, message: '请输入ISBN', trigger: 'blur' }
+    { required: true, message: '请输入ISBN', trigger: 'blur' },
+    { pattern: /\S/, message: 'ISBN不能为空白字符', trigger: 'blur' }
   ],
   price: [
     { required: true, message: '请输入价格', trigger: 'blur' }
@@ -263,8 +266,8 @@ const bookRules = {
 
 const fetchCategories = async () => {
   try {
-    const res = await axios.get('/api/public/category/all')
-    categories.value = res.data.data
+    const res = await axios.get('/api/categories')
+    categories.value = res.data // 后端直接返回数组
   } catch (error) {
     ElMessage.error('获取分类列表失败')
     console.error('获取分类列表失败:', error)
@@ -273,7 +276,7 @@ const fetchCategories = async () => {
 
 const fetchBooks = async () => {
   try {
-    const res = await axios.get('/api/admin/book', { // 调用管理员接口
+    const res = await axios.get('/api/admin/books', {
       params: {
         page: currentPage.value - 1,
         size: pageSize.value,
@@ -281,8 +284,9 @@ const fetchBooks = async () => {
         categoryId: categoryFilter.value
       }
     });
-    books.value = res.data.data.content;
-    total.value = res.data.data.totalElements;
+    // 后端应该返回分页数据格式
+    books.value = res.data.books || [];
+    total.value = res.data.total || 0;
   } catch (error) {
     console.error("获取书籍列表失败:", error);
     ElMessage.error('获取书籍列表失败');
@@ -335,9 +339,7 @@ const handleToggleStatus = async (book) => {
   const newStatus = book.status === 'on' ? 'off' : 'on'
   try {
     // 修正 URL，并使用正确的后台接口
-    await axios.put(`/api/admin/book/${book.id}/status`, null, {
-      params: { status: newStatus }
-    })
+    await axios.put(`/api/admin/books/${book.id}/status`, { status: newStatus })
     ElMessage.success('状态更新成功')
     await fetchBooks() // 重新获取列表
   } catch (error) {
@@ -347,7 +349,7 @@ const handleToggleStatus = async (book) => {
 }
 
 const handleDeleteBook = async (book) => {
-  await axios.delete(`/api/admin/book/${book.id}`)
+  await axios.delete(`/api/admin/books/${book.id}`)
   ElMessage.success('图书已删除')
   fetchBooks()
 }
@@ -355,21 +357,25 @@ const handleDeleteBook = async (book) => {
 const saveBook = async () => {
   if (!bookForm.value) return
   try {
+    // Trim input fields before validation
+    currentBook.isbn = currentBook.isbn.trim();
+
     await bookForm.value.validate()
     if (!currentBook.status) {
       currentBook.status = 'on'
     }
     if (isEditing.value) {
-      await axios.put(`/api/admin/book/${currentBook.id}`, currentBook)
+      await axios.put(`/api/admin/books/${currentBook.id}`, currentBook)
       ElMessage.success('更新成功')
     } else {
-      await axios.post('/api/admin/book', currentBook)
+      await axios.post('/api/admin/books', currentBook)
       ElMessage.success('添加成功')
     }
     dialogVisible.value = false
     await fetchBooks()
   } catch (error) {
-    console.error('表单验证失败:', error)
+    console.error('表单验证或提交失败:', error.response?.data || error)
+    ElMessage.error('操作失败，请检查表单输入或查看控制台日志');
   }
 }
 

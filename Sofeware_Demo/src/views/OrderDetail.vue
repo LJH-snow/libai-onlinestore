@@ -8,7 +8,7 @@
         <p><strong>订单号：</strong>{{ order.orderNumber }}</p>
         <p><strong>下单时间：</strong>{{ formatTime(order.createdAt) }}</p>
         <p><strong>订单状态：</strong><el-tag :type="getStatusType(order.status)">{{ getStatusLabel(order.status) }}</el-tag></p>
-        <p><strong>收货地址：</strong>{{ order.fullAddress || order.address || '地址信息不存在' }}</p>
+        <p><strong>收货地址：</strong>{{ formattedAddress }}</p>
         <p><strong>总价：</strong><span class="total-price">¥{{ order.totalPrice.toFixed(2) }}</span></p>
       </div>
       
@@ -17,8 +17,8 @@
         <el-table-column label="商品">
           <template #default="{ row }">
             <div class="book-item">
-              <img :src="row.bookCover" class="book-cover" alt="封面">
-              <span>{{ row.bookTitle }}</span>
+              <img :src="row.book.cover || row.book.imageUrl" class="book-cover" alt="封面">
+              <span>{{ row.book.title }}</span>
             </div>
           </template>
         </el-table-column>
@@ -38,13 +38,28 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const order = ref(null)
+
+const formattedAddress = computed(() => {
+  if (!order.value || !order.value.address) {
+    return '地址信息不存在';
+  }
+  try {
+    const addr = typeof order.value.address === 'string'
+      ? JSON.parse(order.value.address)
+      : order.value.address;
+
+    return `${addr.province || ''} ${addr.city || ''} ${addr.district || ''} ${addr.detailAddress || ''} (${addr.receiverName || ''} 收) ${addr.phone || ''}`.trim();
+  } catch (e) {
+    return order.value.address;
+  }
+});
 
 // --- 从 OrderList.vue 复制过来的工具函数 ---
 const getStatusType = (status) => {
@@ -66,8 +81,8 @@ const formatTime = (timestamp) => {
 onMounted(async () => {
   const orderId = route.params.id
   try {
-    const res = await axios.get(`/api/order/${orderId}`)
-    order.value = res.data.data
+    const res = await axios.get(`/api/orders/${orderId}`)
+    order.value = res.data
   } catch (err) {
     ElMessage.error('获取订单详情失败')
     order.value = null

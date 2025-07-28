@@ -1,29 +1,32 @@
--- 创建数据库
-CREATE DATABASE IF NOT EXISTS onlinestore CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET NAMES 'utf8mb4';
 
-USE onlinestore;
+-- 创建数据库
+CREATE DATABASE IF NOT EXISTS `onlinestore` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `onlinestore`;
 
 -- 创建用户表
-CREATE TABLE IF NOT EXISTS user (
+CREATE TABLE IF NOT EXISTS `user` (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    role VARCHAR(20) DEFAULT 'USER',
+    `email` VARCHAR(255) NOT NULL UNIQUE,
+    `phone` VARCHAR(20) UNIQUE,
+    `role` VARCHAR(50) DEFAULT 'USER',
+    `status` INT DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建分类表
-CREATE TABLE IF NOT EXISTS category (
+CREATE TABLE IF NOT EXISTS `category` (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建图书表
-CREATE TABLE IF NOT EXISTS book (
+CREATE TABLE IF NOT EXISTS `book` (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(200) NOT NULL,
     author VARCHAR(100) NOT NULL,
@@ -33,13 +36,14 @@ CREATE TABLE IF NOT EXISTS book (
     description TEXT,
     image_url VARCHAR(500),
     category_id BIGINT,
+    status VARCHAR(20) DEFAULT 'on',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (category_id) REFERENCES category(id)
-);
+    FOREIGN KEY (category_id) REFERENCES `category`(id)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建地址表
-CREATE TABLE IF NOT EXISTS address (
+CREATE TABLE IF NOT EXISTS `address` (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     receiver_name VARCHAR(50) NOT NULL,
@@ -50,28 +54,28 @@ CREATE TABLE IF NOT EXISTS address (
     detail_address TEXT NOT NULL,
     is_default BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES user(id)
-);
+    FOREIGN KEY (user_id) REFERENCES `user`(id)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建购物车表
-CREATE TABLE IF NOT EXISTS cart (
+CREATE TABLE IF NOT EXISTS `cart` (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES user(id)
-);
+    FOREIGN KEY (user_id) REFERENCES `user`(id)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建购物车项表
-CREATE TABLE IF NOT EXISTS cart_item (
+CREATE TABLE IF NOT EXISTS `cart_item` (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     cart_id BIGINT NOT NULL,
     book_id BIGINT NOT NULL,
     quantity INT NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (cart_id) REFERENCES cart(id),
-    FOREIGN KEY (book_id) REFERENCES book(id)
-);
+    FOREIGN KEY (cart_id) REFERENCES `cart`(id),
+    FOREIGN KEY (book_id) REFERENCES `book`(id)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建订单表
 CREATE TABLE IF NOT EXISTS `order` (
@@ -83,12 +87,12 @@ CREATE TABLE IF NOT EXISTS `order` (
     address_id BIGINT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES user(id),
-    FOREIGN KEY (address_id) REFERENCES address(id)
-);
+    FOREIGN KEY (user_id) REFERENCES `user`(id),
+    FOREIGN KEY (address_id) REFERENCES `address`(id)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建订单项表
-CREATE TABLE IF NOT EXISTS order_item (
+CREATE TABLE IF NOT EXISTS `order_item` (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     order_id BIGINT NOT NULL,
     book_id BIGINT NOT NULL,
@@ -96,22 +100,22 @@ CREATE TABLE IF NOT EXISTS order_item (
     price DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES `order`(id),
-    FOREIGN KEY (book_id) REFERENCES book(id)
-);
+    FOREIGN KEY (book_id) REFERENCES `book`(id)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 插入初始数据
-INSERT INTO user (username, password, email, role) VALUES 
-('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDa', 'admin@bookstore.com', 'ADMIN'),
-('user', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDa', 'user@bookstore.com', 'USER');
+INSERT INTO `user` (username, password, email, role) VALUES 
+('admin', '123456', 'admin@bookstore.com', 'ADMIN'),
+('user', '123456', 'user@bookstore.com', 'USER');
 
-INSERT INTO category (name, description) VALUES 
+INSERT INTO `category` (name, description) VALUES 
 ('计算机科学', '计算机相关书籍'),
 ('文学小说', '文学类小说'),
 ('历史', '历史类书籍'),
 ('科技', '科技类书籍');
 
-INSERT INTO book (title, author, isbn, price, stock, description, category_id) VALUES 
-('Java编程思想', 'Bruce Eckel', '9787111213826', 108.00, 50, 'Java编程经典书籍', 1),
-('Vue.js实战', '梁灏', '9787115473892', 89.00, 30, 'Vue.js框架实战指南', 1),
-('百年孤独', '加西亚·马尔克斯', '9787544253994', 55.00, 100, '魔幻现实主义文学经典', 2),
-('人类简史', '尤瓦尔·赫拉利', '9787508640757', 68.00, 80, '人类发展史', 3); 
+INSERT INTO `book` (title, author, isbn, price, stock, description, image_url, category_id) VALUES 
+('Java编程思想', 'Bruce Eckel', '9787111213826', 108.00, 50, 'Java编程经典书籍', 'https://img3.doubanio.com/view/subject/l/public/s27949462.jpg', 1),
+('Vue.js实战', '梁灏', '9787115473892', 89.00, 30, 'Vue.js框架实战指南', 'https://img1.doubanio.com/view/subject/l/public/s29363998.jpg', 1),
+('百年孤独', '加西亚·马尔克斯', '9787544253994', 55.00, 100, '魔幻现实主义文学经典', 'https://img3.doubanio.com/view/subject/l/public/s29471461.jpg', 2),
+('人类简史', '尤瓦尔·赫拉利', '9787508640757', 68.00, 80, '人类发展史', 'https://img3.doubanio.com/view/subject/l/public/s27814883.jpg', 3);

@@ -44,20 +44,24 @@
       <el-table :data="orders.filter(order => order.items && order.items.length)" style="width: 100%">
         <el-table-column prop="orderNumber" label="订单号" width="180" />
         
-        <el-table-column prop="username" label="用户名" width="120" />
+        <el-table-column label="用户名" width="120">
+          <template #default="{ row }">
+            {{ row.user?.username || '-' }}
+          </template>
+        </el-table-column>
         
         <el-table-column label="商品信息" min-width="300">
           <template #default="{ row }">
             <template v-if="row.items && row.items.length">
               <div v-for="item in row.items" :key="item.id" class="order-item">
               <el-image
-                :src="item.bookCover"
-                :preview-src-list="[item.bookCover]"
+                :src="item.book?.cover || ''"
+                :preview-src-list="[item.book?.cover || '']"
                 fit="cover"
                 class="book-cover"
               />
               <div class="item-info">
-                <p class="title">{{ item.bookTitle }}</p>
+                <p class="title">{{ item.book?.title || '商品信息缺失' }}</p>
                 <p class="price">¥{{ item.price }} × {{ item.quantity }}</p>
               </div>
             </div>
@@ -90,8 +94,9 @@
             <el-button link type="primary" @click="handleViewOrder(row)">查看</el-button>
             <el-button v-if="row.status && row.status.toLowerCase() === 'pending'" link type="success" @click="handleShipOrder(row)">发货</el-button>
             <el-button v-if="row.status && row.status.toLowerCase() === 'shipped'" link type="warning" @click="handleCompleteOrder(row)">完成</el-button>
-            <el-button v-if="row.status && ['pending', 'shipped'].includes(row.status.toLowerCase())" link type="danger" @click="handleCancelOrder(row)">取消</el-button>
-            <el-button link type="info" @click="() => openReturnDialog(row)">退货</el-button>
+            <el-button v-if="row.status && ['PENDING', 'SHIPPED'].includes(row.status.toUpperCase())" link type="danger" @click="handleCancelOrder(row)">取消</el-button>
+            <el-button v-if="row.status && row.status.toUpperCase() === 'COMPLETED'" link type="info" @click="() => openReturnDialog(row)">退货</el-button>
+            <el-button link type="danger" @click="handleDeleteOrder(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -120,10 +125,10 @@
           <h3>基本信息</h3>
           <el-descriptions :column="2" border>
             <el-descriptions-item label="订单号">
-              {{ currentOrder.id }}
+              {{ currentOrder.orderNumber }}
             </el-descriptions-item>
             <el-descriptions-item label="用户名">
-              {{ currentOrder.username }}
+              {{ currentOrder.user?.username || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="创建时间">
               {{ currentOrder.createdAt ? new Date(currentOrder.createdAt).toLocaleString() : '-' }}
@@ -143,13 +148,13 @@
               <template #default="{ row }">
                 <div class="book-info">
                   <el-image
-                    :src="row.bookCover"
-                    :preview-src-list="[row.bookCover]"
+                    :src="row.book?.cover || ''"
+                    :preview-src-list="[row.book?.cover || '']"
                     fit="cover"
                     class="book-cover"
                   />
                   <div class="book-details">
-                    <p class="title">{{ row.bookTitle }}</p>
+                    <p class="title">{{ row.book?.title || '商品信息缺失' }}</p>
                     <p class="price">¥{{ row.price }}</p>
                   </div>
                 </div>
@@ -170,13 +175,13 @@
           <h3>收货信息</h3>
           <el-descriptions :column="1" border>
             <el-descriptions-item label="收货人">
-              {{ currentOrder.consignee || '-' }}
+              {{ currentOrder.address?.receiverName || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="联系电话">
-              {{ currentOrder.phone || '-' }}
+              {{ currentOrder.address?.phone || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="收货地址">
-              {{ currentOrder.fullAddress || '-' }}
+              {{ `${currentOrder.address?.province || ''} ${currentOrder.address?.city || ''} ${currentOrder.address?.district || ''} ${currentOrder.address?.detailAddress || ''}` }}
             </el-descriptions-item>
           </el-descriptions>
         </div>
@@ -191,7 +196,7 @@
               ¥0.00
             </el-descriptions-item>
             <el-descriptions-item label="实付金额">
-              ¥{{ currentOrder.totalPrice ? currentOrder.totalPrice.toFixed(2) : '0.00' }}
+              <span style="color: #f56c6c; font-weight: bold;">¥{{ currentOrder.totalPrice ? currentOrder.totalPrice.toFixed(2) : '0.00' }}</span>
             </el-descriptions-item>
           </el-descriptions>
         </div>
@@ -279,9 +284,10 @@ async function fetchOrders() {
   }
   if (searchQuery.value.trim()) params.keyword = searchQuery.value.trim()
   if (statusFilter.value) params.status = statusFilter.value
-  const res = await axios.get('/api/order/all', { params })
-  orders.value = res.data.data.content || []
-  total.value = Number(res.data.data.totalElements) || 0
+  const res = await axios.get('/api/admin/orders', { params })
+  // 后端返回 {orders: [...], total: number} 格式
+  orders.value = res.data.orders || []
+  total.value = Number(res.data.total) || 0
 }
 
 const handleSearch = () => {
@@ -298,35 +304,51 @@ const handleCurrentChange = (val) => {
   fetchOrders()
 }
 
-const handleViewOrder = async (order) => {
-  const res = await axios.get(`/api/order/${order.id}`)
-  currentOrder.value = res.data.data
-  dialogVisible.value = true
+const handleViewOrder = (order) => {
+  currentOrder.value = order;
+  dialogVisible.value = true;
 }
 
 const handleShipOrder = async (order) => {
-  await axios.put(`/api/order/${order.id}/status`, null, { params: { status: 'shipped' } })
+  await axios.put(`/api/admin/orders/${order.id}/status`, { status: 'SHIPPED' })
   ElMessage.success('发货成功')
   fetchOrders()
 }
 
 const handleCompleteOrder = async (order) => {
-  await axios.put(`/api/order/${order.id}/status`, null, { params: { status: 'completed' } })
+  await axios.put(`/api/admin/orders/${order.id}/status`, { status: 'COMPLETED' })
   ElMessage.success('订单已完成')
   fetchOrders()
 }
 
 const handleCancelOrder = async (order) => {
-  await axios.put(`/api/order/${order.id}/status`, null, { params: { status: 'cancelled' } })
+  await axios.put(`/api/admin/orders/${order.id}/status`, { status: 'CANCELLED' })
   ElMessage.success('订单已取消')
   fetchOrders()
 }
 
 const handleDeleteOrder = async (order) => {
-  await axios.delete(`/api/order/${order.id}`)
-  ElMessage.success('订单已删除')
-  fetchOrders()
-}
+  ElMessageBox.confirm(
+    `确定要永久删除订单 ${order.orderNumber} 吗？此操作不可逆！`,
+    '严重警告',
+    {
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+      type: 'error',
+    }
+  ).then(async () => {
+    try {
+      await axios.delete(`/api/admin/orders/${order.id}`);
+      ElMessage.success('订单已成功删除');
+      fetchOrders(); // 重新获取列表
+    } catch (error) {
+      console.error("删除订单失败:", error);
+      ElMessage.error('删除订单失败，请查看控制台日志');
+    }
+  }).catch(() => {
+    ElMessage.info('已取消删除');
+  });
+};
 
 function openReturnDialog(order) {
   returnOrder.value = order
@@ -340,7 +362,7 @@ async function handleReturnConfirm() {
     ElMessage.error('请填写退货原因')
     return
   }
-  await axios.put(`/api/order/${returnOrder.value.id}/status`, null, { params: { status: 'cancelled' } })
+  await axios.put(`/api/admin/orders/${returnOrder.value.id}/status`, { status: 'CANCELLED' })
   returnDialogVisible.value = false
   ElMessage.success('订单已退货')
   fetchOrders() // 退货后刷新订单列表

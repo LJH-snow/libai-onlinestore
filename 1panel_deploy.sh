@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # 服务器信息
-SERVER_IP="192.168.122.131"
+SERVER_IP="117.72.197.93"
 PROJECT_DIR="/opt/bookstore"
 
 # 日志函数

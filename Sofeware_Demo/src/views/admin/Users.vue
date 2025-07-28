@@ -221,15 +221,21 @@ const getRoleLabel = (role) => {
 }
 
 async function fetchUsers() {
-  let params = {
-    page: currentPage.value - 1,
-    size: pageSize.value
+  try {
+    const res = await axios.get('/api/admin/users', {
+      params: {
+        page: currentPage.value - 1,
+        size: pageSize.value,
+        keyword: searchQuery.value,
+        role: roleFilter.value
+      }
+    });
+    users.value = res.data.users || [];
+    total.value = res.data.total || 0;
+  } catch (error) {
+    console.error("获取用户列表失败:", error);
+    ElMessage.error('获取用户列表失败');
   }
-  if (searchQuery.value.trim()) params.keyword = searchQuery.value.trim()
-  if (roleFilter.value) params.role = roleFilter.value
-  const res = await axios.get('/api/user/all', { params })
-  users.value = res.data.data.content || []
-  total.value = Number(res.data.data.totalElements) || 0
 }
 
 const handleSearch = () => {
@@ -247,33 +253,52 @@ const handleCurrentChange = (val) => {
 }
 
 const handleStatusChange = async (user) => {
-  await axios.put(`/api/user/${user.id}/status`, null, { params: { status: user.status } })
-  ElMessage.success(user.status === 1 ? '用户已启用' : '用户已禁用')
-  fetchUsers()
+  try {
+    await axios.put(`/api/admin/users/${user.id}/status`, { status: user.status })
+    ElMessage.success(user.status === 1 ? '用户已启用' : '用户已禁用')
+    // No need to fetch users again, the v-model already updated the UI.
+  } catch (error) {
+    ElMessage.error('状态更新失败')
+    console.error('状态更新失败:', error.response?.data || error.message)
+    // Revert the switch state on failure
+    user.status = user.status === 1 ? 0 : 1;
+  }
 }
 
 const handleDeleteUser = async (user) => {
-  await axios.delete(`/api/user/${user.id}`)
+  await axios.delete(`/api/admin/users/${user.id}`)
   ElMessage.success('用户已删除')
   fetchUsers()
 }
 
 const handleSubmitForm = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async (valid) => {
     if (valid) {
-      if (dialogType.value === 'add') {
-        await axios.post('/api/user', userForm.value)
-        ElMessage.success('用户添加成功')
-      } else {
-        await axios.put(`/api/user/${userForm.value.id}`, userForm.value)
-        ElMessage.success('用户更新成功')
+      try {
+        if (dialogType.value === 'add') {
+          await axios.post('/api/admin/users', userForm.value);
+          ElMessage.success('用户添加成功');
+        } else {
+          await axios.put(`/api/admin/users/${userForm.value.id}`, userForm.value);
+          ElMessage.success('用户更新成功');
+        }
+        dialogVisible.value = false;
+        fetchUsers();
+      } catch (error) {
+        console.error("用户操作失败:", error.response?.data || error);
+        const errorMsg = error.response?.data?.error || '未知错误';
+        if (errorMsg.includes('username already exists')) {
+          ElMessage.error('操作失败：该用户名已被使用');
+        } else if (errorMsg.includes('email already exists')) {
+          ElMessage.error('操作失败：该邮箱已被注册');
+        } else {
+          ElMessage.error(`操作失败: ${errorMsg}`);
+        }
       }
-      dialogVisible.value = false
-      fetchUsers()
     }
-  })
-}
+  });
+};
 
 const handleAddUser = () => {
   dialogType.value = 'add'

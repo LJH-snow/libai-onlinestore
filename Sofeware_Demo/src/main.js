@@ -16,6 +16,16 @@ import router from './router'
 import './assets/main.css'
 import axios from 'axios'
 
+// 设置 axios 基础URL - 在Docker环境中使用相对路径，让Nginx代理处理
+// 开发环境使用Vite代理，生产环境使用Nginx代理
+if (import.meta.env.DEV) {
+  // 开发环境：使用Vite代理
+  axios.defaults.baseURL = ''
+} else {
+  // 生产环境：使用相对路径，让Nginx代理到后端
+  axios.defaults.baseURL = ''
+}
+
 const app = createApp(App)
 
 // 注册所有图标
@@ -33,7 +43,12 @@ axios.interceptors.request.use(
     const token = localStorage.getItem('token')
     
     // 如果请求不是公共API，并且存在token，则添加认证头
-    if (!config.url.startsWith('/api/public') && token) {
+    const publicApiPrefixes = ['/api/user/register', '/api/user/login', '/api/public/book', '/api/public/category'];
+
+    // Check if the request URL starts with any of the public prefixes
+    const isPublicApi = publicApiPrefixes.some(prefix => config.url.startsWith(prefix));
+
+    if (!isPublicApi && token) {
         config.headers.Authorization = 'Bearer ' + token;
         console.log(`Authorization header set for: [${config.method.toUpperCase()}] ${config.url}`);
     }
@@ -57,3 +72,5 @@ axios.interceptors.response.use(
 )
 
 app.mount('#app')
+
+

@@ -8,11 +8,24 @@
  */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import axios from 'axios'
 
 export const useUserStore = defineStore('user', () => {
   const user = ref(null)
   const token = ref(localStorage.getItem('token') || '')
   const isAdmin = ref(localStorage.getItem('userRole') === 'admin')
+
+  async function fetchUserInfo() {
+    if (!token.value) return
+    try {
+      const res = await axios.get('/api/user/profile')
+      setUser(res.data)
+    } catch (error) {
+      console.error('Failed to fetch user info:', error)
+      // Token might be invalid, consider logging out
+      logout()
+    }
+  }
 
   function setUser(userData) {
     user.value = userData
@@ -48,6 +61,7 @@ export const useUserStore = defineStore('user', () => {
     setUser,
     setToken,
     setAdmin,
-    logout
+    logout,
+    fetchUserInfo
   }
 }) 

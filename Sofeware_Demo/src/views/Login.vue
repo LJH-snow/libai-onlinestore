@@ -14,10 +14,10 @@
         label-width="80px"
         @submit.prevent="handleLogin"
       >
-        <el-form-item label="账号" prop="username">
+        <el-form-item label="账号" prop="account">
           <el-input
-            v-model="formData.username"
-            placeholder="请输入用户名/邮箱/手机号"
+            v-model="formData.account"
+            placeholder="请输入邮箱/用户名/手机号"
           />
         </el-form-item>
         
@@ -57,12 +57,12 @@ const loginForm = ref(null)
 const loading = ref(false)
 
 const formData = reactive({
-  username: '',
+  account: '',
   password: ''
 })
 
 const rules = {
-  username: [
+  account: [
     { required: true, message: '请输入账号', trigger: 'blur' }
   ],
   password: [
@@ -77,11 +77,11 @@ const handleLogin = async () => {
   loading.value = true
   try {
     await loginForm.value.validate()
-    const res = await axios.post('/api/user/login', formData)
-    const userData = res.data.data
-    userStore.setUser(userData)
-    userStore.setToken(userData.token)
-    userStore.setAdmin(userData.role && userData.role.toUpperCase() === 'ADMIN')
+    const res = await axios.post('/api/login', formData)
+    const responseData = res.data
+    userStore.setUser(responseData.user)
+    userStore.setToken(responseData.token)
+    userStore.setAdmin(responseData.user.role && responseData.user.role.toUpperCase() === 'ADMIN')
     await nextTick()
     router.push('/')
   } catch (error) {

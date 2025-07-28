@@ -75,40 +75,72 @@
     </el-card>
 
     <!-- 订单确认对话框 -->
-    <el-dialog v-model="orderDialogVisible" title="确认订单" width="500px">
-      <div>
-        <el-form label-width="80px">
-          <el-form-item label="收货地址">
-            <el-select v-model="selectedAddress" placeholder="请选择收货地址" style="width: 100%">
-              <el-option v-for="addr in addressList" :key="addr.id" :label="addr.address" :value="addr.id" />
-              <template #empty>
-                <div style="padding: 10px; text-align: center;">
-                  <span>还没有收货地址，请去添加</span>
-                </div>
-              </template>
-            </el-select>
-          </el-form-item>
+    <el-dialog v-model="orderDialogVisible" title="确认订单" width="600px">
+      <div v-if="selectedAddressInfo">
+        <el-descriptions title="收货信息" :column="1" border>
+          <template #extra>
+            <el-button type="primary" link @click="addressDialogVisible = true">切换地址</el-button>
+          </template>
+          <el-descriptions-item label="收货人">{{ selectedAddressInfo.receiverName }}, {{ selectedAddressInfo.phone }}</el-descriptions-item>
+          <el-descriptions-item label="收货地址">{{ `${selectedAddressInfo.province} ${selectedAddressInfo.city} ${selectedAddressInfo.district} ${selectedAddressInfo.detailAddress}` }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+      <div v-else>
+        <el-empty description="请选择收货地址">
+          <el-button type="primary" @click="addressDialogVisible = true">选择地址</el-button>
+        </el-empty>
+      </div>
+
+      <el-divider />
+
+      <el-form label-width="80px">
           <el-form-item label="支付方式">
             <el-radio-group v-model="selectedPayment">
               <el-radio v-for="pay in paymentMethods" :key="pay" :value="pay">{{ pay }}</el-radio>
             </el-radio-group>
           </el-form-item>
           <el-form-item label="订单商品">
-            <ul>
+            <ul class="order-items-summary">
               <li v-for="item in cartStore.items" :key="item.id">
-                {{ item.title }} × {{ item.quantity }}
+                <span>{{ item.title }}</span>
+                <span>x {{ item.quantity }}</span>
+                <span>¥{{ (item.price * item.quantity).toFixed(2) }}</span>
               </li>
             </ul>
           </el-form-item>
           <el-form-item label="总价">
-            <span style="color:#f56c6c;font-weight:bold;">¥{{ cartStore.totalPrice.toFixed(2) }}</span>
+            <span style="color:#f56c6c;font-weight:bold; font-size: 1.2em;">¥{{ cartStore.totalPrice.toFixed(2) }}</span>
           </el-form-item>
         </el-form>
-      </div>
+
       <template #footer>
         <el-button @click="orderDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="confirmOrder" :disabled="!selectedAddress || !selectedPayment">确认支付</el-button>
       </template>
+    </el-dialog>
+
+    <!-- 地址选择对话框 -->
+    <el-dialog v-model="addressDialogVisible" title="选择收货地址" width="700px" append-to-body>
+        <div class="address-list-container">
+            <el-radio-group v-model="selectedAddress" class="address-radios">
+              <el-radio
+                v-for="addr in addressList"
+                :key="addr.id"
+                :value="addr.id"
+                border
+                class="address-radio"
+              >
+                <div class="address-info">
+                  <p><strong>{{ addr.receiverName }}</strong>, {{ addr.phone }} <el-tag v-if="addr.isDefault" size="small" type="success" style="margin-left: 10px;">默认</el-tag></p>
+                  <p>{{ `${addr.province} ${addr.city} ${addr.district} ${addr.detailAddress}` }}</p>
+                </div>
+              </el-radio>
+            </el-radio-group>
+        </div>
+        <template #footer>
+            <el-button @click="addressDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="handleSelectAddress">确认选择</el-button>
+        </template>
     </el-dialog>
   </div>
 </template>
@@ -130,8 +162,10 @@ onMounted(() => {
 })
 
 const orderDialogVisible = ref(false)
-const selectedAddress = ref('')
-const selectedPayment = ref('')
+const addressDialogVisible = ref(false)
+const selectedAddress = ref(null)
+const selectedAddressInfo = ref(null)
+const selectedPayment = ref('支付宝')
 const addressList = ref([])
 const paymentMethods = ref(['微信支付', '支付宝', '银行卡'])
 
@@ -171,29 +205,44 @@ const clearCart = () => {
 
 const checkout = async () => {
   if (cartStore.items.length === 0) {
-    ElMessage.warning('购物车为空')
-    return
+    ElMessage.warning('购物车为空');
+    return;
   }
-  addressList.value = []
-  // 优先从 store 获取 userId，如果不存在则从 localStorage 回退
-  const userId = userStore.user?.id || localStorage.getItem('userId')
-  
-  if (userId) {
-    try {
-      const res = await axios.get(`/api/addresses/user/${userId}`)
-      addressList.value = res.data.data || []
-    } catch (error) {
-      console.error("获取地址列表失败:", error);
-      ElMessage.error("获取收货地址失败，请稍后重试。")
+
+  // 总是重置地址列表和选择状态
+  addressList.value = [];
+  selectedAddress.value = null;
+  selectedAddressInfo.value = null;
+
+  const userId = userStore.user?.id || localStorage.getItem('userId');
+  if (!userId) {
+    ElMessage.error("无法获取用户信息，请重新登录。");
+    return;
+  }
+
+  try {
+    const res = await axios.get(`/api/addresses/user/${userId}`);
+    addressList.value = res.data.data || [];
+
+    if (addressList.value.length === 0) {
+      ElMessage.warning('您还没有收货地址，请先到个人中心添加');
+      return; // 关键：如果没有地址，则不打开任何对话框
     }
-  } else {
-    // 如果到处都找不到 userId，提示错误
-    ElMessage.error("无法获取用户信息，请重新登录。")
-    return // 阻止打开对话框
+
+    // 自动选择默认地址
+    const defaultAddress = addressList.value.find(addr => addr.isDefault);
+    if (defaultAddress) {
+      selectedAddress.value = defaultAddress.id;
+      selectedAddressInfo.value = defaultAddress;
+    }
+
+    orderDialogVisible.value = true; // 只有在获取到地址后才打开对话框
+
+  } catch (error) {
+    console.error("获取地址列表失败:", error);
+    ElMessage.error("获取收货地址失败，请稍后重试。");
   }
-  
-  orderDialogVisible.value = true
-}
+};
 
 const confirmOrder = async () => {
   if (!selectedAddress.value) {
@@ -229,7 +278,7 @@ const confirmOrder = async () => {
       quantity: item.quantity,
       price: item.price
     }));
-    
+
     // 构造与后端 OrderCreationDTO 完全匹配的数据结构
     const orderData = {
       orderNumber: orderNumber,
@@ -242,7 +291,7 @@ const confirmOrder = async () => {
     
     console.log('Order data being sent:', orderData)
     
-    await axios.post('/api/order', orderData)
+    await axios.post('/api/orders', orderData)
     orderDialogVisible.value = false
     await cartStore.clearCart()
     selectedAddress.value = ''
@@ -254,6 +303,13 @@ const confirmOrder = async () => {
     console.error('Order creation error:', err)
     console.error('Error response:', err.response?.data)
   }
+}
+
+const handleSelectAddress = () => {
+    if (selectedAddress.value) {
+        selectedAddressInfo.value = addressList.value.find(addr => addr.id === selectedAddress.value);
+    }
+    addressDialogVisible.value = false;
 }
 </script>
 
@@ -337,5 +393,48 @@ const confirmOrder = async () => {
 .cart-actions {
   display: flex;
   gap: 20px;
+}
+
+.address-radios {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.address-radio {
+  width: 100%;
+  margin-bottom: 10px;
+  height: auto;
+  padding: 10px;
+}
+
+.address-info p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.no-address {
+  padding: 10px;
+  text-align: center;
+  color: #909399;
+  width: 100%;
+}
+
+.order-items-summary {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.order-items-summary li {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+}
+
+.address-list-container {
+    max-height: 50vh;
+    overflow-y: auto;
 }
 </style> 

@@ -1,46 +1,34 @@
 <template>
   <div class="book-detail">
     <el-card class="detail-card">
-      <div class="book-content">
+      <div class="book-content" v-if="book.id">
         <div class="book-cover">
-          <img :src="book.cover" :alt="book.title" />
+          <img :src="book.cover || book.imageUrl || '/placeholder.svg'" :alt="book.title" />
         </div>
         
         <div class="book-info">
           <h1 class="book-title">{{ book.title }}</h1>
-          
           <div class="book-meta">
             <p><span>作者：</span>{{ book.author }}</p>
-            <p><span>出版社：</span>{{ book.publisher }}</p>
             <p><span>ISBN：</span>{{ book.isbn }}</p>
-            <!-- <p><span>出版日期：</span>{{ book.publishDate }}</p> -->
-            <p><span>库存：</span>{{ book.stock }}本</p>
+            <p><span>价格：</span><span class="price">¥{{ book.price }}</span></p>
+            <p><span>库存：</span>{{ book.stock }}</p>
           </div>
           
-          <div class="book-price">
-            <span class="price-label">价格：</span>
-            <span class="price-value">¥{{ book.price }}</span>
+          <div class="quantity-selector">
+            <span>数量：</span>
+            <el-input-number v-model="quantity" :min="1" :max="book.stock" />
           </div>
           
-          <div class="book-actions">
-            <el-input-number
-              v-model="quantity"
-              :min="1"
-              :max="book.stock"
-              :disabled="!userStore.token"
-            />
-            <el-button
-              type="primary"
-              :disabled="!userStore.token"
-              @click="addToCart"
-            >
+          <div class="action-buttons">
+            <el-button type="primary" size="large" @click="addToCart">
               加入购物车
             </el-button>
           </div>
         </div>
       </div>
       
-      <div class="book-description">
+      <div class="book-description" v-if="book.description">
         <h2>图书简介</h2>
         <p>{{ book.description }}</p>
       </div>
@@ -76,9 +64,14 @@ const addToCart = () => {
 
 onMounted(() => {
   const bookId = route.params.id
-  axios.get(`/api/public/book/${bookId}`)
+  if (!bookId || bookId === 'undefined') {
+    ElMessage.error('图书ID无效')
+    return
+  }
+
+  axios.get(`/api/books/${bookId}`)
     .then(res => {
-      book.value = res.data.data
+      book.value = res.data // 后端直接返回book对象
     })
     .catch(err => {
       ElMessage.error('获取图书详情失败')

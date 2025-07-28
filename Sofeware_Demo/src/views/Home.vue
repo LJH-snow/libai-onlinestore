@@ -30,7 +30,7 @@
         <el-row :gutter="20">
           <el-col :span="8" v-for="book in filteredBooks" :key="book.id">
             <el-card class="book-card">
-              <el-image :src="book.cover" fit="contain" class="book-cover" />
+              <el-image :src="book.cover || '/placeholder.svg'" fit="contain" class="book-cover" />
               <div class="book-info">
                 <div class="book-title">{{ book.title }}</div>
                 <div class="book-author">{{ book.author }}</div>
@@ -80,7 +80,8 @@ const total = ref(0)
 const loading = ref(false)
 
 const filteredBooks = computed(() => {
-  let result = books.value
+  // Ensure books.value is always an array
+  let result = Array.isArray(books.value) ? books.value : []
   if (selectedCategory.value) {
     result = result.filter(book => book.categoryId == selectedCategory.value)
   }
@@ -96,8 +97,9 @@ const filteredBooks = computed(() => {
 
 const fetchCategories = async () => {
   try {
-    const res = await axios.get('/api/public/category/all')
-    categories.value = [{ id: null, name: '全部' }, ...res.data.data]
+    const res = await axios.get('/api/categories')
+    // The new backend returns the array directly
+    categories.value = [{ id: null, name: '全部' }, ...res.data]
   } catch (error) {
     console.error(error)
   }
@@ -106,25 +108,30 @@ const fetchCategories = async () => {
 const fetchBooks = async () => {
   loading.value = true
   try {
-    const res = await axios.get('/api/public/book', {
-      params: {
-        page: currentPage.value - 1,
-        size: pageSize.value,
-        categoryId: selectedCategory.value
-      }
-    })
-    const data = res.data.data
-    books.value = data.content
-    total.value = data.totalElements
+    // The new backend returns books in a structured format
+    const res = await axios.get('/api/books')
+    // Handle both array format and object format
+    if (Array.isArray(res.data)) {
+      books.value = res.data
+      total.value = res.data.length
+    } else if (res.data.books) {
+      books.value = res.data.books
+      total.value = res.data.total || res.data.books.length
+    } else {
+      books.value = []
+      total.value = 0
+    }
   } catch (error) {
     console.error(error)
+    books.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
 }
 
 function handleCategoryClick(categoryId) {
-  selectedCategory.value = categoryId
+  selectedCategory.value = categoryId || ''
   searchQuery.value = ''
   fetchBooks()
 }
